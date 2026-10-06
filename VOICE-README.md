@@ -50,6 +50,7 @@ Validated locally:
 - 19 speech session checks (phone recovery, confirmation, cancellation, errors, duplicate-session prevention, cleanup).
 - 50 timer lifecycle checks (short press, duration conversion, starting, timeline threshold, ordering, alert priority, capacity, dismissal, freeing slots, restoring saved data, preserving other timers, snooze).
 - Every watch C source compiled to Cortex-M4 ARM objects against official Pebble SDK 4.33.1 basalt headers.
+- Phone JavaScript syntax checked; its entry file is `src/pkjs/index.js`, matching the current SDK and CloudPebble convention.
 
 A complete `.pbw` build and on-watch dictation/display testing still need to be performed in CloudPebble. The standalone ZIP includes the resource files and phone JavaScript used by the original timer app.
 
