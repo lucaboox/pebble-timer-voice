@@ -16,6 +16,7 @@
 #include "setting_window.h"
 #include "popup_window.h"
 #include "phone.h"
+#include "voice_timer.h"
 
 // constants
 #define COUNTDOWN_TIMER_PERSIST_KEY 72445846
@@ -149,6 +150,35 @@ static void prv_promote_timer(CountdownTimer *countdown_timer) {
  * CALLBACKS
  */
 
+// Manual and spoken timers share the existing timer model, UI and timeline path.
+static CountdownTimer *prv_create_timer(int64_t duration) {
+  CountdownTimer *timer = countdown_timer_create(duration, &s_countdown_timer_id_max);
+  if (!timer) return NULL;
+  countdown_timer_list_add(s_countdown_timers, COUNTDOWN_TIMERS_MAX,
+    &s_countdown_timers_count, timer);
+  countdown_timer_start(timer);
+  prv_promote_timer(timer);
+  menu_window_reload_data(s_menu_window);
+  menu_window_refresh(s_menu_window);
+  detail_window_set_countdown_timer(s_detail_window, timer);
+  if (countdown_timer_get_duration(timer) >= TIMELINE_MIN_LENGTH) phone_send_pin(timer);
+  return timer;
+}
+
+static bool voice_timer_create_callback(uint32_t seconds) {
+  // Voice must not evict an existing timer without the user seeing the list.
+  if (s_countdown_timers_count >= COUNTDOWN_TIMERS_MAX) return false;
+  if (!prv_create_timer((int64_t)seconds * 1000)) return false;
+  if (!popup_window_get_topmost_window(s_popup_window)) {
+    detail_window_push(s_detail_window, true);
+    detail_window_deep_refresh(s_detail_window);
+  }
+  if (s_app_timer) app_timer_reschedule(s_app_timer, MIN_REFRESH_DELAY);
+  s_last_activity = countdown_timer_get_epoch_ms();
+  vibes_short_pulse();
+  return true;
+}
+
 /*
  * AppTimer callback
  *
@@ -239,12 +269,38 @@ static void popup_window_snooze_timer_callback(CountdownTimer *countdown_timer, 
 
 /*
  * PopupWindow stop timer callback
- * cancels the current timer vibration sequence
+ * acknowledges a finished timer and frees its slot
  */
 
 static void popup_window_stop_timer_callback(void *context) {
-  // pop the window
-  popup_window_pop(s_popup_window, true);
+  CountdownTimer *timer = popup_window_get_countdown_timer(s_popup_window);
+  int16_t index = countdown_timer_list_get_timer_index(s_countdown_timers,
+    s_countdown_timers_count, timer);
+  // Stop the alarm and unload its screen before releasing timer references.
+  popup_window_pop(s_popup_window, false);
+  if (index >= 0 && countdown_timer_get_paused(timer) &&
+      countdown_timer_get_current_time(timer) == 0) {
+    if (setting_window_get_timer(s_setting_window) == timer) {
+      setting_window_pop(s_setting_window, false);
+      setting_window_set_timer(s_setting_window, NULL);
+    }
+    if (detail_window_get_countdown_timer(s_detail_window) == timer) {
+      detail_window_pop(s_detail_window, false);
+      detail_window_set_countdown_timer(s_detail_window, NULL);
+    }
+    popup_window_set_countdown_timer(s_popup_window, NULL);
+    if (countdown_timer_get_duration(timer) >= TIMELINE_MIN_LENGTH) phone_delete_pin(timer);
+    countdown_timer_list_remove(s_countdown_timers, &s_countdown_timers_count, (uint8_t)index);
+    countdown_timer_destroy(timer);
+    // The upstream menu needs two reloads when removing its last timer.
+    menu_window_reload_data(s_menu_window);
+    menu_window_reload_data(s_menu_window);
+    // Save now so the dismissed timer stays deleted after reopening the app.
+    countdown_timer_list_save(s_countdown_timers, s_countdown_timers_count,
+      COUNTDOWN_TIMER_PERSIST_KEY);
+    persist_write_int(COUNTDOWN_TIMER_ID_PERSIST_KEY, s_countdown_timer_id_max);
+    vibes_short_pulse();
+  }
 
   // log activity
   s_last_activity = countdown_timer_get_epoch_ms();
@@ -271,22 +327,12 @@ static void setting_window_complete_callback(int64_t duration, void *context) {
 
   // check if new timer or editing
   if (countdown_timer == NULL) {
-    countdown_timer = countdown_timer_create(duration, &s_countdown_timer_id_max);
-    countdown_timer_list_add(s_countdown_timers, COUNTDOWN_TIMERS_MAX,
-      &s_countdown_timers_count, countdown_timer);
-    countdown_timer_start(countdown_timer);
-    // update visuals
-    menu_window_reload_data(s_menu_window);
-    menu_window_refresh(s_menu_window);
-    detail_window_set_countdown_timer(s_detail_window, countdown_timer);
+    countdown_timer = prv_create_timer(duration);
+    if (!countdown_timer) return;
     setting_window_pop(setting_window, false);
     detail_window_push(s_detail_window, true);
     detail_window_deep_refresh(s_detail_window);
 
-    // delete the Timeline pin
-    if (countdown_timer_get_duration(countdown_timer) >= TIMELINE_MIN_LENGTH) {
-      phone_send_pin(countdown_timer);
-    }
   } else {
     countdown_timer_update(countdown_timer, duration, true);
     countdown_timer_start(countdown_timer);
@@ -482,6 +528,14 @@ static void menu_window_click_callback(uint8_t index, void *context) {
   s_last_activity = countdown_timer_get_epoch_ms();
 }
 
+#ifdef PBL_MICROPHONE
+static void menu_window_long_click_callback(uint8_t index, void *context) {
+  if (index != 0) return; // Speech is only available on the "+" row.
+  voice_timer_start();
+  s_last_activity = countdown_timer_get_epoch_ms();
+}
+#endif
+
 
 
 /*******************************************************************************
@@ -493,6 +547,7 @@ static void menu_window_click_callback(uint8_t index, void *context) {
  */
 
 static void initialize(void) {
+  voice_timer_init(voice_timer_create_callback);
   // connect to phone
   phone_connect();
   // load the CountdownTimer data
@@ -516,6 +571,9 @@ static void initialize(void) {
     .get_timer = menu_window_get_timer_callback,
     .get_timer_count = menu_window_get_timer_count_callback,
     .clicked = menu_window_click_callback,
+#ifdef PBL_MICROPHONE
+    .long_clicked = menu_window_long_click_callback,
+#endif
 #ifdef TIMER_HAS_SPEAKER
     .get_sound_enabled = menu_window_get_sound_enabled_callback,
 #endif
@@ -543,6 +601,7 @@ static void initialize(void) {
   // create pop-up window
   PopupWindowCallbacks popup_callbacks = {
     .up_click = popup_window_snooze_timer_callback,
+    .select_click = popup_window_stop_timer_callback,
     .down_click = popup_window_stop_timer_callback,
   };
   s_popup_window = popup_window_create();
@@ -563,11 +622,14 @@ static void initialize(void) {
     }
   }
 
+  // Keep "+" available immediately on microphone watches, including first launch.
+#ifndef PBL_MICROPHONE
   // open the setting screen if no timers
   if (s_countdown_timers_count == 0) {
     setting_window_set_timer(s_setting_window, NULL);
     setting_window_push(s_setting_window, true);
   }
+#endif
 
   // start the main update timer
   s_app_timer = app_timer_register(prv_get_next_refresh_delay(), app_timer_callback, NULL);
@@ -621,6 +683,7 @@ static void prv_update_app_glance(AppGlanceReloadSession *session, size_t limit,
  */
 
 static void deinitialize(void) {
+  voice_timer_deinit();
   // cancel the timer if it is still registered
   if (s_app_timer != NULL) {
     app_timer_cancel(s_app_timer);
@@ -663,4 +726,5 @@ int main(void) {
   initialize();
   app_event_loop();
   deinitialize();
+  return 0;
 }

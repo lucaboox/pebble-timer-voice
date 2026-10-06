@@ -1,4 +1,12 @@
-# pebble-timer
+# Timer Voice
+This checkout adds **hold SELECT on + to speak a timer duration**. See [VOICE-README.md](VOICE-README.md) for usage, import instructions and validation.
+
+Import `https://github.com/lucaboox/pebble-timer-voice` into CloudPebble (branch **main**), select **basalt** for Pebble Time, compile and install. For future updates, pull the latest GitHub changes into the same CloudPebble project, then compile and install again.
+
+On **Time's Up!**, **SELECT, DOWN or BACK** dismisses and deletes the finished timer. **UP** snoozes it for one minute.
+
+## Original Pebble Timer
+
 Simple pebble timer built to be published by Pebble in the store.
 
 ![alt Timer Menu](https://github.com/pebble/pebble-timer/blob/release-1.0/assets/Menu.png)
@@ -14,8 +22,9 @@ menu items on the main screen, or by choosing "Open timer" in the pin's action m
 the timer can be played and paused as well as edited and deleted.
 
 If the app is closed out, it will automatically open and vibrate when a timer goes off. From this timer ended
-screen, the user can dismiss the timer or snooze the timer. The former will leave it as a paused timer in
-the menu window, and the latter will roll the timer back one minute.
+screen, the user can dismiss the timer or snooze the timer. In this variant, SELECT, DOWN, or BACK
+dismisses and deletes the finished timer; UP snoozes it for one minute. An alert that times out
+automatically leaves the completed timer in the list.
 
 ## Changelog
 

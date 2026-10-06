@@ -81,6 +81,7 @@ typedef struct MenuWindowCallbacks {
   MenuWindowGetTimer get_timer;
   MenuWindowGetTimerCount get_timer_count;
   MenuWindowClickCallback clicked;
+  MenuWindowClickCallback long_clicked;       //< optional, SELECT held on a row
   MenuWindowGetSoundEnabled get_sound_enabled;  //< optional
 } MenuWindowCallbacks;
 

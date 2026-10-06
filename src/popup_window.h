@@ -222,6 +222,8 @@ void popup_window_set_vibes(bool chime);
 
 void popup_window_set_countdown_timer(PopupWindow *popup_window, CountdownTimer *countdown_timer);
 
+CountdownTimer *popup_window_get_countdown_timer(PopupWindow *popup_window);
+
 
 
 /*

@@ -181,6 +181,8 @@ bool detail_window_get_topmost_window(DetailWindow *detail_window);
 void detail_window_set_countdown_timer(DetailWindow *detail_window,
                                        CountdownTimer *countdown_timer);
 
+CountdownTimer *detail_window_get_countdown_timer(DetailWindow *detail_window);
+
 
 
 /*

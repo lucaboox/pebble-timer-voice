@@ -169,6 +169,12 @@ static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuI
   if (cell_index->row == 0) {
     menu_cell_draw(ctx, cell_layer, "+", NULL, 0, fonts_get_system_font(FONT_KEY_GOTHIC_28),
       true, GColorBlack, GColorWhite);
+#ifdef PBL_MICROPHONE
+    GRect bounds = layer_get_bounds(cell_layer);
+    graphics_draw_text(ctx, "Hold to speak", fonts_get_system_font(FONT_KEY_GOTHIC_14),
+      GRect(0, bounds.size.h - 18, bounds.size.w, 18), GTextOverflowModeTrailingEllipsis,
+      GTextAlignmentCenter, NULL);
+#endif
   } else if (cell_index->row > menu_window->callbacks.get_timer_count(context)) {
     char *title = menu_window->callbacks.get_sound_enabled(context) ? "Sound: On" : "Sound: Off";
     menu_cell_draw(ctx, cell_layer, title, NULL, 0, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
@@ -212,6 +218,15 @@ static void menu_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, v
   menu_window->callbacks.clicked(cell_index->row, context);
 }
 
+#ifdef PBL_MICROPHONE
+static void menu_long_select_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *context) {
+  MenuWindow *menu_window = (MenuWindow*)context;
+  if (menu_window->callbacks.long_clicked) {
+    menu_window->callbacks.long_clicked(cell_index->row, context);
+  }
+}
+#endif
+
 
 
 /*
@@ -245,6 +260,9 @@ static MenuWindow *menu_window_init(MenuWindow *menu_window,
       .get_num_rows = menu_get_num_rows_callback,
       .draw_row = menu_draw_row_callback,
       .select_click = menu_select_callback,
+#ifdef PBL_MICROPHONE
+      .select_long_click = menu_long_select_callback,
+#endif
 #ifdef PBL_ROUND
       .get_cell_height = menu_get_row_height_callback,
 #endif

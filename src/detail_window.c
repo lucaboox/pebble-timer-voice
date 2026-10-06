@@ -360,6 +360,10 @@ void detail_window_set_countdown_timer(DetailWindow *detail_window,
   detail_window->countdown_timer = countdown_timer;
 }
 
+CountdownTimer *detail_window_get_countdown_timer(DetailWindow *detail_window) {
+  return detail_window->countdown_timer;
+}
+
 
 
 /*

@@ -270,7 +270,7 @@ static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
 /*
  * SELECT click handler callback
  *
- * nothing yet... here for completeness
+ * dismisses the finished timer when the alarm is showing
  */
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -297,6 +297,15 @@ static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
   return popup_window->callbacks.down_click(context);
 }
 
+static void back_click_handler(ClickRecognizerRef recognizer, void *context) {
+  PopupWindow *popup_window = (PopupWindow*)context;
+  if (popup_window->action_visible && popup_window->callbacks.down_click) {
+    popup_window->callbacks.down_click(context);
+  } else {
+    popup_window_pop(popup_window, true);
+  }
+}
+
 
 
 /*
@@ -307,9 +316,11 @@ static void click_config_provider(void *context) {
   window_set_click_context(BUTTON_ID_UP, context);
   window_set_click_context(BUTTON_ID_SELECT, context);
   window_set_click_context(BUTTON_ID_DOWN, context);
+  window_set_click_context(BUTTON_ID_BACK, context);
   window_single_click_subscribe(BUTTON_ID_UP, up_click_handler);
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
   window_single_click_subscribe(BUTTON_ID_DOWN, down_click_handler);
+  window_single_click_subscribe(BUTTON_ID_BACK, back_click_handler);
 }
 
 static void prv_window_load(Window* window){
@@ -521,6 +532,10 @@ void popup_window_set_vibes(bool chime) {
 
 void popup_window_set_countdown_timer(PopupWindow *popup_window, CountdownTimer *countdown_timer) {
   popup_window->countdown_timer = countdown_timer;
+}
+
+CountdownTimer *popup_window_get_countdown_timer(PopupWindow *popup_window) {
+  return popup_window->countdown_timer;
 }
 
 
